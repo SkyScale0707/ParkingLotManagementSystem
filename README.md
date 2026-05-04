@@ -1,0 +1,2 @@
+# ParkingLotManagementSystem
+这不是一个正经项目，只是一个华科25届光电苦逼大一新生忙了半个学期的C课设作业，留在Github上以作纪念。
