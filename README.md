@@ -1,2 +1,7 @@
-# ParkingLotManagementSystem
-这不是一个正经项目，只是一个华科25届光电苦逼大一新生忙了半个学期的C课设作业，留在Github上以作纪念。
+## ParkingLotManagementSystem
+这不是一个正经项目，只是一个华科25届光电苦逼大一新生忙了半个学期的C课设作业，留在Github上以作纪念。<br>
+这个项目甚至是“半残”的，视图没有做好，但是仍然得到了92分。
+### 本项目分成了两期
+- stage 1  纯逻辑实现
+- stage 2  ui设计
+- stage 3  半残的视图设计
