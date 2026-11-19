@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/new/prefix1">
-        <file>creeper-outlined.ico</file>
-    </qresource>
-</RCC>
