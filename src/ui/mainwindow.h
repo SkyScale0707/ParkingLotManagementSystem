@@ -12,6 +12,7 @@ class QTimer;
 
 namespace app {
 class AppContext;
+class DeviceBridge;
 }
 
 namespace ui {
@@ -27,6 +28,7 @@ public:
 
     void showPage(int index);
     int pageCount() const { return m_pages.size(); }
+    app::DeviceBridge* deviceBridge() const { return m_bridge; }
 
 private:
     void buildUi();
@@ -36,6 +38,7 @@ private:
     void compactNow();
 
     app::AppContext* m_ctx = nullptr;
+    app::DeviceBridge* m_bridge = nullptr;
     QListWidget* m_nav = nullptr;
     QStackedWidget* m_stack = nullptr;
     QLabel* m_title = nullptr;

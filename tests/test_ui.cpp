@@ -5,7 +5,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-// UI 冒烟测试：构造主窗口、切换 5 个页面、确认渲染不崩溃。
+// UI 冒烟测试：构造主窗口、切换 6 个页面、确认渲染不崩溃。
 // 通过 ctest 设置 QT_QPA_PLATFORM=offscreen 运行，无需真实显示器。
 class TestUi : public QObject
 {
@@ -31,7 +31,7 @@ void TestUi::mainWindowShowsAllPages()
     window.show();
     QTest::qWait(50);
 
-    QCOMPARE(window.pageCount(), 5);
+    QCOMPARE(window.pageCount(), 6);
     for (int i = 0; i < window.pageCount(); ++i) {
         window.showPage(i);
         QTest::qWait(10);

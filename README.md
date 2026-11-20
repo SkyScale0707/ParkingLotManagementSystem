@@ -5,6 +5,8 @@
 > 本仓库保留原项目作为纪念，并按 `docs/feasibility-2d-and-multifile-json.md`
 > 的 P0–P5 计划重写为**纯 Qt 6 + CMake** 工程：删除 3D 视图与 VS 工程残留，
 > 换成 2D 车位视图、分代快照 + 追加日志的存储层，以及可测试的领域模型。
+> 在此基础上新增**外设自动识别层**（地感 / 车牌相机 / 道闸 / 显示屏 / 打印机），
+> 与人工登记共用同一份数据、可以同时工作。
 
 ## 界面
 
@@ -12,13 +14,17 @@
 |---|---|
 | ![总览](docs/screenshots/overview.png) | ![停车操作](docs/screenshots/operations.png) |
 
-| 车辆查询 | 统计报表 |
+| 自动识别 | 车辆查询 |
 |---|---|
-| ![车辆查询](docs/screenshots/search.png) | ![统计报表](docs/screenshots/stats.png) |
+| ![自动识别](docs/screenshots/device.png) | ![车辆查询](docs/screenshots/search.png) |
 
-| 系统设置 | 出场结算 |
+| 统计报表 | 系统设置 |
 |---|---|
-| ![系统设置](docs/screenshots/settings.png) | ![出场结算](docs/screenshots/dialog-exit.png) |
+| ![统计报表](docs/screenshots/stats.png) | ![系统设置](docs/screenshots/settings.png) |
+
+| 出场结算 |
+|---|
+| ![出场结算](docs/screenshots/dialog-exit.png) |
 
 ## 相对原项目的结构性改动
 
@@ -30,6 +36,7 @@
 | 线性扫描找空位、`-1/-2` 魔数区分「不在场/在队列」 | `std::set<int>` 取最小编号空位，`EnterStatus/ExitStatus` 枚举语义化 |
 | 手写 OpenGL 3D 视图：滚轮缩放失效、点选不中、黑屏风险 | **QGraphicsView**：命中测试 / 缩放 / 拖拽平移由框架提供，无 GL 上下文风险 |
 | 5 个 Tab + 固定 768×576、每 5 秒清空表格重建 | 左侧导航 + `QStackedWidget`、可缩放窗口、`QAbstractTableModel` 增量刷新 |
+| 只能人工录入，没有外部设备模型 | **外设模拟层**：地感/相机/道闸/显示屏/打印机 + 车道状态机，自动识别与人工登记并行 |
 | VS 工程 + GLEW NuGet 包 + 手写资源文件 | 纯 **CMake**（`Qt6::Core/Gui/Widgets/Test`），无 VS 扩展依赖 |
 
 ## 构建
@@ -84,7 +91,8 @@ package.bat
 
 **方式二：开发调试**
 
-`build\Release\parking_lot.exe` 依赖 Qt 的 `bin` 目录在 PATH 中，或用 `windeployqt` 部署到该目录：
+用 `build.bat` 构建时会自动把 Qt 运行库部署到 `build\<Config>\`，可直接双击；
+若只用下面的手动 `cmake --build` 构建而未部署，则需要把 Qt 的 `bin` 加进 PATH：
 
 ```powershell
 $env:PATH = "D:\Qt\6.10.3\msvc2022_64\bin;$env:PATH"
@@ -102,8 +110,32 @@ $env:PATH = "D:\Qt\6.10.3\msvc2022_64\bin;$env:PATH"
 |---|---|
 | `--data-dir <dir>` | 指定数据目录 |
 | `--demo` | 向空库注入演示数据（72 位满场 + 8 辆排队 + 14 笔历史流水） |
-| `--screenshot <dir>` | 渲染 5 个页面与对话框截图后退出（使用临时目录） |
+| `--screenshot <dir>` | 渲染 6 个页面与对话框截图后退出（使用临时目录） |
 | `--smoke` | 启动 1.2 秒后自动退出，用于冒烟检查 |
+
+## 自动识别与人工登记并行
+
+新增「自动识别」页，模拟真实停车场出入口的外设：
+
+```text
+地感触发 → 车牌识别（置信度/故障） → 道闸抬起 → 车辆通过 → 道闸落下
+                                        ↑
+                          出口先结算，再放行（等待业务确认）
+```
+
+- **同一份数据**：自动识别和人工登记都调用同一个 `AppContext`，
+  所以可以人工入库后自动出场、自动入场后人工结算，界面实时同步。
+- **入口**：可填车牌（留空随机生成唯一车牌）与车型，点「模拟入口来车」；
+  若车牌已在场内/队列中会被拒绝。
+- **出口**：可填车牌（留空从场内随机选一辆），自动识别后先调用
+  `AppContext::leaveVehicle()` 结算，再抬杆；车辆不在场内会被拒绝。
+- **流水**：自动识别页记录每次自动入场/出场/拒绝/异常，含票据号、金额与补位信息。
+- **监听开关**：可随时停止/恢复两条车道的设备监听。
+- **外设计数器**：`CounterDevice` 目前是**空置占位**，不产生也不累计任何数据；
+  等待真实计数器外设接入后再填充数据接收实现。
+
+底层实现见 [`src/interface`](src/interface/README.md)、
+桥接层 [`devicebridge.h`](src/app/devicebridge.h)、页面 [`devicepage.h`](src/ui/pages/devicepage.h)。
 
 ## 测试
 
@@ -111,14 +143,17 @@ $env:PATH = "D:\Qt\6.10.3\msvc2022_64\bin;$env:PATH"
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
-4 组测试全部通过（`domain` / `persistence` / `app` / `ui`）：
+5 组测试全部通过（`domain` / `persistence` / `app` / `ui` / `bridge`）：
 
 | 套件 | 覆盖内容 |
 |---|---|
 | `t_domain` | 计费边界（免费时长、计费单位进位）、满场排队、FIFO 补位、重复车牌、不变量校验、布局几何 |
 | `t_persistence` | 快照往返、崩溃重放、残尾丢弃、快照全丢后按日志重建、归档幂等、旧代清理、损坏快照拒绝加载 |
 | `t_app` | 应用上下文端到端：入场/出场/补位 → 落盘 → 重启恢复；配置修改与容量保护；CSV 导出 |
-| `t_ui` | `offscreen` 平台构造主窗口、切换 5 个页面并渲染，不需要真实显示器 |
+| `t_ui` | `offscreen` 平台构造主窗口、切换 6 个页面并渲染，不需要真实显示器 |
+| `t_bridge` | 自动识别 → AppContext 集成：自动入场/出场、未知车牌拒绝、人工与自动混用 |
+
+外设模拟层还有独立自测工程 `src/interface/selftest`（11 项，见该目录 README）。
 
 UI 测试里用到的 `--screenshot` 模式也用于生成 `docs/screenshots/` 中的图片。
 
@@ -139,9 +174,11 @@ package.bat
 │  ├─ main.cpp                 程序入口（字体、翻译、命令行、截图模式）
 │  ├─ domain/                  领域层：类型 / 计费 / 停车场 / 2D 布局（不依赖 Widgets）
 │  ├─ persistence/             多文件 JSON 仓储：分代快照 + journal + 归档
+│  ├─ interface/               外设模拟层：设备接口 / 模拟设备 / 车道状态机 / 独立自测
 │  ├─ app/appcontext.*         应用上下文：业务操作、失败回滚、单实例锁、演示数据
-│  └─ ui/                      主窗口、主题、2D 视图、表格模型、5 个页面、2 个对话框
-├─ tests/                      Qt Test：domain / persistence / app / ui
+│  ├─ app/devicebridge.*       自动识别 ↔ 业务层桥（进入 AppContext）
+│  └─ ui/                      主窗口、主题、2D 视图、表格模型、6 个页面、2 个对话框
+├─ tests/                      Qt Test：domain / persistence / app / ui / bridge
 ├─ resources/                  图标与 qrc
 ├─ docs/
 │  ├─ feasibility-2d-and-multifile-json.md   可行性报告（P0–P5 计划与实测数据）
@@ -187,6 +224,8 @@ data/
 | 保存 / 加载数据 | 自动：每次操作追加日志，启动/退出/阈值时压缩快照 |
 | 修改单价 | 系统设置 → 计费单价 / 免费时长 / 计费单位 |
 | 统计信息 | 总览 KPI 与统计报表 |
+| 自动识别出入 | 自动识别页：模拟地感/相机/道闸，与人工登记共用数据 |
+| 外设计数器 | `CounterDevice` 空置占位，等待真实设备接入 |
 | 3D 图形视图 | **删除**，改为总览页 2D 车位视图（点击查看、滚轮缩放、拖拽平移） |
 
 ### 原功能验收对照
@@ -217,6 +256,9 @@ data/
 - 容量调整要求场内与队列均为空，避免在业务数据中间重建几何。
 - 车牌只做长度与唯一性校验，不做号牌格式强校验。
 - 单实例通过 `QLockFile` 保护：第二个实例只读打开，写操作被禁用。
+- 自动出口在识别阶段先结算再抬杆；若之后道闸卡死，车辆已从场内移除（模拟简化）。
+- 外设计数器 `CounterDevice` 为空置占位：不模拟计数，等真实外设接入后再实现数据接收。
+- 设备延时（识别 350ms、抬杆 450ms、通行 900ms）可在 `SimulationProfile` 中调整。
 
 ## 原型与证据
 

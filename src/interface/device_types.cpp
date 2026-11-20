@@ -65,7 +65,7 @@ QString normalizePlate(const QString& raw)
     text.remove(QLatin1Char(' '));
     text.remove(QLatin1Char('-'));
     text.remove(QLatin1Char('.'));
-    text.remove(QLatin1Char('·'));
+    text.remove(QChar(0x00B7));   // 间隔号 ·
     return text.trimmed();
 }
 

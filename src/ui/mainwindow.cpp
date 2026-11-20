@@ -1,8 +1,10 @@
 #include "ui/mainwindow.h"
 
 #include "app/appcontext.h"
+#include "app/devicebridge.h"
 #include "domain/billing.h"
 #include "ui/page.h"
+#include "ui/pages/devicepage.h"
 #include "ui/pages/operationspage.h"
 #include "ui/pages/overviewpage.h"
 #include "ui/pages/searchpage.h"
@@ -36,6 +38,7 @@ struct PageInfo {
 const PageInfo kPages[] = {
     {"总览", "实时车位分布与关键指标"},
     {"停车操作", "入库登记与出场结算"},
+    {"自动识别", "入口/出口设备状态与自动识别流水"},
     {"车辆查询", "按车牌、车型与状态筛选"},
     {"统计报表", "收入、车型分布与历史流水"},
     {"系统设置", "容量、计费规则与数据目录"},
@@ -152,8 +155,10 @@ void MainWindow::buildUi()
     contentLayout->addLayout(header);
 
     m_stack = new QStackedWidget(content);
+    m_bridge = new app::DeviceBridge(m_ctx, this);
     m_pages.append(new OverviewPage(m_ctx, m_stack));
     m_pages.append(new OperationsPage(m_ctx, m_stack));
+    m_pages.append(new DevicePage(m_ctx, m_bridge, m_stack));
     m_pages.append(new SearchPage(m_ctx, m_stack));
     m_pages.append(new StatsPage(m_ctx, m_stack));
     m_pages.append(new SettingsPage(m_ctx, m_stack));

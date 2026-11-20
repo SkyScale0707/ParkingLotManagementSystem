@@ -39,8 +39,8 @@ private slots:
     void exitRequiresApproval();
     void exitAutoApproval();
     void timestampsFollowInjectedClock();
-    void counterTracksPassages();
     void duplicateEntryRejectedWhileBusy();
+    void counterPlaceholderIsEmpty();
 };
 
 void TestInterface::plateNormalization()
@@ -187,29 +187,12 @@ void TestInterface::timestampsFollowInjectedClock()
     QCOMPARE(entered.first().passedAtMs, clock.nowMs());
 }
 
-void TestInterface::counterTracksPassages()
+void TestInterface::counterPlaceholderIsEmpty()
 {
-    EntryExitSimulator sim(fastOptions(false));
-
-    QVector<PassageEvent> entered;
-    QVector<PassageEvent> exited;
-    connect(&sim, &EntryExitSimulator::entered, this,
-            [&entered](const PassageEvent& event) { entered.append(event); });
-    connect(&sim, &EntryExitSimulator::exited, this,
-            [&exited](const PassageEvent& event) { exited.append(event); });
-
-    sim.simulateEntry(QStringLiteral("鄂A00004"), 0.99, 0);
-    QTRY_VERIFY_WITH_TIMEOUT(entered.size() == 1, 3000);
-
-    sim.simulateExit(QStringLiteral("鄂A00004"), 0.99, 0);
-    QTRY_VERIFY_WITH_TIMEOUT(exited.size() == 1, 3000);
-
-    QCOMPARE(sim.counter()->inCount(), qint64(1));
-    QCOMPARE(sim.counter()->outCount(), qint64(1));
-    QCOMPARE(sim.counter()->netCount(), qint64(0));
-    QVERIFY(sim.counter()->state() == CounterState::Fine);
+    EntryExitSimulator sim(fastOptions());
+    // CounterDevice 是空置占位：只保证接口位存在，不产生任何模拟计数。
+    QVERIFY(sim.counter() != nullptr);
 }
-
 void TestInterface::duplicateEntryRejectedWhileBusy()
 {
     EntryExitSimulator sim(fastOptions());

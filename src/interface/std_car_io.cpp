@@ -96,9 +96,6 @@ void StdCarInMonitor::handleEntered(const PassageEvent& event)
     log.ticket = event.ticket;
 
     m_logs.append(log);
-    if (m_counter)
-        m_counter->record(event.plate, CarIOState::In, event.passedAtMs);
-
     emit carIn(log);
 }
 
@@ -160,9 +157,6 @@ void StdCarOutMonitor::handleExited(const PassageEvent& event)
     log.ticket = event.ticket;
 
     m_logs.append(log);
-    if (m_counter)
-        m_counter->record(event.plate, CarIOState::Out, event.passedAtMs);
-
     emit carOut(log);
 }
 

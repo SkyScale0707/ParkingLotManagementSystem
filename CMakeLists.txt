@@ -18,7 +18,12 @@ find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Widgets Test)
 qt_standard_project_setup()
 
 # ---------------------------------------------------------------------------
-# pl_core：领域层 + 持久化层（不依赖 Widgets，便于单元测试）
+# pl_interface：外部设备模拟层（地感 / 相机 / 道闸 / 显示屏 / 打印机）
+# ---------------------------------------------------------------------------
+add_subdirectory(src/interface)
+
+# ---------------------------------------------------------------------------
+# pl_core：领域层 + 持久化层 + 设备桥（不依赖 Widgets，便于单元测试）
 # ---------------------------------------------------------------------------
 add_library(pl_core STATIC
     src/domain/types.cpp
@@ -27,10 +32,12 @@ add_library(pl_core STATIC
     src/domain/layout.cpp
     src/persistence/lotstore.cpp
     src/app/appcontext.cpp
+    src/app/devicebridge.h
+    src/app/devicebridge.cpp
 )
 
 target_include_directories(pl_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(pl_core PUBLIC Qt6::Core)
+target_link_libraries(pl_core PUBLIC Qt6::Core pl_interface)
 
 # ---------------------------------------------------------------------------
 # pl_ui：界面层（导航 / 页面 / 2D 视图 / 对话框）
@@ -42,6 +49,7 @@ add_library(pl_ui STATIC
     src/ui/lotview.cpp
     src/ui/pages/overviewpage.cpp
     src/ui/pages/operationspage.cpp
+    src/ui/pages/devicepage.cpp
     src/ui/pages/searchpage.cpp
     src/ui/pages/statspage.cpp
     src/ui/pages/settingspage.cpp

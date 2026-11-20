@@ -1,14 +1,14 @@
 # src/interface — 停车场进出口外设模拟层
 
 本目录模拟停车场进出口的**外部设备**：地感、车牌识别相机、道闸、LED 屏、票据打印机，
-以及一个“通过计数器”。目标是在没有真实硬件的情况下，完整跑通：
+以及一个**空置的**通过计数器接口。目标是在没有真实硬件的情况下，完整跑通：
 
 ```text
 车辆到达 → 车牌识别（含置信度/故障） → 道闸抬起 → 车辆通过 → 道闸落下 → 出入记录
 ```
 
-这一层只依赖 **QtCore**，不引用 `domain/`、`persistence/`、`ui/`，也不修改仓库其它文件；
-下一轮再把 `carIn` / `carOut` 信号适配到 `AppContext`。
+这一层只依赖 **QtCore**，不引用 `domain/`、`persistence/`、`ui/`。
+目前已经通过 `src/app/devicebridge.*` 接入整体工程，与人工登记共用同一个 `AppContext`。
 
 ## 文件
 
@@ -19,10 +19,10 @@
 | `devices.h` | 设备抽象接口：`ILoopDetector`、`IPlateRecognizer`、`IBarrier`、`IDisplayBoard`、`ITicketPrinter` |
 | `simulated_devices.h/.cpp` | 上述接口的模拟实现，带识别延时/抖动、置信度、故障注入、道闸卡死 |
 | `lane_controller.h/.cpp` | 单条车道的设备状态机（入口/出口），只依赖抽象接口 |
-| `extra_equipment_state.h/.cpp` | 通过计数器 `CounterDevice` 与 `CounterState` / `CarIOState`（对应原草稿） |
+| `extra_equipment_state.h/.cpp` | 空置占位：`CounterState` / `CarIOState` / `CounterDevice`（等待真实外设计数器） |
 | `std_car_io.h/.cpp` | 对外监控接口：`CarIOError`、`CarIOLog`、`StdCarInMonitor`、`StdCarOutMonitor`（对应原草稿） |
 | `entry_exit_simulator.h/.cpp` | 一进一出两条车道的组装器，自动驱动车辆通过 |
-| `CMakeLists.txt` | 供下一轮 `add_subdirectory(src/interface)` 的库定义（当前根工程未引用） |
+| `CMakeLists.txt` | `pl_interface` 库定义，已由根工程 `add_subdirectory(src/interface)` 引入 |
 | `selftest/` | 独立自测工程，不依赖根 CMake |
 
 ## 设备接口
@@ -87,11 +87,11 @@ using namespace pl::devices;
 
 EntryExitSimulator sim;                       // 默认：出口自动放行
 connect(&sim, &EntryExitSimulator::entered, this, [](const PassageEvent& e) {
-    // 下一轮：调用 AppContext::enterVehicle(e.plate, 车型)
+    // 整体工程中由 DeviceBridge 调用 AppContext::enterVehicle(e.plate, 车型)
     // 拿到票据号后 sim.entryMonitor()->printTicket(ticket);
 });
 connect(&sim, &EntryExitSimulator::exited, this, [](const PassageEvent& e) {
-    // 下一轮：调用 AppContext::leaveVehicle(e.plate)
+    // 整体工程中由 DeviceBridge 调用 AppContext::leaveVehicle(e.plate)
 });
 
 sim.simulateEntry(QStringLiteral("鄂A12345"), 0.98, 0);
@@ -130,8 +130,10 @@ lane.start();
 - `CarIOLog`：一条出入记录（车牌、入口/出口、In/Out、时间、置信度、车型、票据号）。
 - `CarIOError`：错误码 + 消息 + 时间；`timeLog()` 返回
   `[年, 月, 日, 时, 分, 秒]`，对应原草稿里的 `time_log`。
-- `CounterDevice`：累计入场/出场与净在场数；故障或未连接时 `record()` 返回 `false`。
-- `StdCarInMonitor` / `StdCarOutMonitor` 负责把车道事件转成上述记录并累计计数。
+- `CounterDevice`：**空置占位**。目前只有构造函数，不产生也不累计任何数据；
+  真实计数器外设接入后，再在该类中补充数据接收接口与实现。
+- `StdCarInMonitor` / `StdCarOutMonitor` 负责把车道事件转成上述记录；
+  计数器指针仅保留接口位，不会写入模拟数据。
 
 ## 与原草稿的对应
 
@@ -139,7 +141,7 @@ lane.start();
 |---|---|
 | `extra_equipment_state::counterState` | `CounterState`（Fine/Error/Disconnected） |
 | `extra_equipment_state::carIOState` | `CarIOState`（In/Out） |
-| `extra_equipment_state::counterMake` | `CounterDevice` |
+| `extra_equipment_state::counterMake` | `CounterDevice`（空置占位） |
 | `CarIO::error` | `CarIOError` |
 | `CarIO::logs` | `CarIOLog` |
 | `CarIO::std_car_in` | `StdCarInMonitor` |
@@ -162,16 +164,20 @@ $env:PATH = "D:\Qt\6.10.3\msvc2022_64\bin;$env:PATH"
 ```
 
 测试覆盖：车牌归一化、完整入库流程、低置信度拒绝、道闸卡死、出口待确认/自动放行、
-注入时钟的时间戳、计数器、车道忙拒绝。
+注入时钟的时间戳、计数器空置占位、车道忙拒绝（共 11 项）。
 
-## 下一轮适配清单（不在本轮范围）
+## 与整体工程的集成
 
-1. 根 `CMakeLists.txt` 增加 `add_subdirectory(src/interface)`，或把 `.cpp` 加进 `pl_core`。
-2. 写一个 `DeviceBridge`（可放在 `src/app/`）：把 `PassageEvent.plate` 映射到
-   `AppContext::enterVehicle()` / `leaveVehicle()`；`vehicleCategory` 映射到 `VehicleType`。
-3. 出口在 `waitingForExitApproval` 里调用 `feeCentsFor()` 展示金额，再 `approveExit()`。
-4. 把 `LaneController::state()`、`displayChanged()` 接到总览页，显示车道实时状态。
-5. 需要真机时，用串口/网口网关实现 `devices.h` 的接口，替换 `Simulated*` 即可。
+已完成的接入：
+
+1. 根 `CMakeLists.txt` 通过 `add_subdirectory(src/interface)` 引入 `pl_interface`；
+2. `src/app/devicebridge.*` 把 `PassageEvent` 映射到
+   `AppContext::enterVehicle()` / `leaveVehicle()`；出口在识别后先结算再 `approveExit()`；
+3. `src/ui/pages/devicepage.*` 提供「自动识别」页：车道状态、模拟来车、识别流水、监听开关；
+4. 人工登记（停车操作页/结算对话框）与自动识别共用同一个 `AppContext`，可同时使用。
+
+后续接真机时，只需用串口/网口网关实现 `devices.h` 的接口替换 `Simulated*`，
+并让真实计数器填充 `CounterDevice`；`LaneController`、`DeviceBridge`、页面都不要改。
 
 ## 约定
 

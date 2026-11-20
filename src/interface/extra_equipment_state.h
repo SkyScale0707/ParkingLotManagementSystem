@@ -1,17 +1,18 @@
 #pragma once
 // ---------------------------------------------------------------------------
-// extra_equipment_state.h — 附加外设：通过计数器
+// extra_equipment_state.h — 附加外设：通过计数器（空置占位）
 //
-// 对应原草稿 extra_equipment_state.cpp：
+// 对应原草稿 extra_equipment_state.cpp 中的：
 //   * counterState  -> CounterState（Fine / Error / Disconnected）
 //   * carIOState    -> CarIOState（In / Out）
-//   * counterMake   -> CounterDevice（记录每次通过的车牌、方向与时间）
+//   * counterMake   -> CounterDevice
 //
-// 计数器只负责「数数」与状态上报，不参与计费/放行判断。
+// 注意：CounterDevice 目前**保持空置**，不产生、不累计任何数据。
+// 真实计数器外设接入后，再在这里补充数据接收接口与实现，
+// 避免模拟数据与真实外设数据混在一起。
 // ---------------------------------------------------------------------------
 #include <QObject>
 #include <QString>
-#include <QtGlobal>
 
 namespace pl {
 namespace devices {
@@ -31,32 +32,13 @@ enum class CarIOState : int {
 
 QString carIOStateText(CarIOState state);
 
+// 空置占位：等待真实外设类传入数据。
 class CounterDevice : public QObject
 {
     Q_OBJECT
 
 public:
     explicit CounterDevice(QObject* parent = nullptr);
-
-    CounterState state() const { return m_state; }
-    void setState(CounterState state);
-
-    qint64 inCount() const { return m_inCount; }
-    qint64 outCount() const { return m_outCount; }
-    qint64 netCount() const { return m_inCount - m_outCount; }   // 当前在场
-
-    // 记录一次车辆通过；计数器故障/离线时返回 false
-    bool record(const QString& plate, CarIOState state, qint64 atMs);
-    void reset();
-
-signals:
-    void counted(const QString& plate, pl::devices::CarIOState state, qint64 atMs);
-    void stateChanged(pl::devices::CounterState state);
-
-private:
-    CounterState m_state = CounterState::Fine;
-    qint64 m_inCount = 0;
-    qint64 m_outCount = 0;
 };
 
 } // namespace devices

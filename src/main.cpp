@@ -1,4 +1,5 @@
 #include "app/appcontext.h"
+#include "app/devicebridge.h"
 #include "ui/dialogs/enterdialog.h"
 #include "ui/dialogs/exitdialog.h"
 #include "ui/mainwindow.h"
@@ -7,7 +8,10 @@
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFont>
 #include <QFontDatabase>
@@ -18,6 +22,8 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QTranslator>
+
+#include <functional>
 
 int main(int argc, char** argv)
 {
@@ -120,9 +126,38 @@ int main(int argc, char** argv)
         window.show();
         QApplication::processEvents();
 
+        // 截图前先驱动一次自动识别，让「自动识别」页有真实流水
+        auto waitFor = [](const std::function<bool()>& done, int timeoutMs) {
+            QElapsedTimer timer;
+            timer.start();
+            while (!done() && timer.elapsed() < timeoutMs)
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        };
+        if (auto* bridge = window.deviceBridge()) {
+            const QList<pl::ActiveEntry> parked = ctx.lot().parkedBySlot();
+            if (!parked.isEmpty()) {
+                const QString leaving = parked.first().plate;
+                bridge->requestExit(leaving);
+                waitFor([&ctx, &leaving]() { return !ctx.lot().hasPlate(leaving); }, 4000);
+            }
+            bridge->requestEntry(QStringLiteral("鄂A88888"), 0);
+            waitFor(
+                [&ctx]() {
+                    return ctx.lot().hasPlate(QStringLiteral("鄂A88888"))
+                        || ctx.lot().waitingIndex(QStringLiteral("鄂A88888")) >= 0;
+                },
+                4000);
+            waitFor(
+                [bridge]() {
+                    return bridge->simulator()->entryController()->state()
+                        == pl::devices::LaneState::Idle;
+                },
+                2000);
+        }
+
         const QStringList names{QStringLiteral("overview"), QStringLiteral("operations"),
-                                QStringLiteral("search"), QStringLiteral("stats"),
-                                QStringLiteral("settings")};
+                                QStringLiteral("device"), QStringLiteral("search"),
+                                QStringLiteral("stats"), QStringLiteral("settings")};
         for (int i = 0; i < window.pageCount() && i < names.size(); ++i) {
             window.showPage(i);
             QApplication::processEvents();

@@ -22,3 +22,9 @@ set_target_properties(t_ui PROPERTIES WIN32_EXECUTABLE FALSE)
 target_link_libraries(t_ui PRIVATE pl_ui Qt6::Test)
 add_test(NAME ui COMMAND t_ui)
 set_tests_properties(ui PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# t_bridge：自动识别设备 ↔ 业务层集成（人工 + 自动共用 AppContext）
+qt_add_executable(t_bridge test_bridge.cpp)
+set_target_properties(t_bridge PROPERTIES WIN32_EXECUTABLE FALSE)
+target_link_libraries(t_bridge PRIVATE pl_core Qt6::Test)
+add_test(NAME bridge COMMAND t_bridge)

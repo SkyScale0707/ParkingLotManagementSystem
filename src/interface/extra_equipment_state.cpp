@@ -18,37 +18,10 @@ QString carIOStateText(CarIOState state)
     return state == CarIOState::In ? QStringLiteral("入场") : QStringLiteral("出场");
 }
 
+// 空置：真实外设计数器接入后再实现数据接收。
 CounterDevice::CounterDevice(QObject* parent)
     : QObject(parent)
 {
-}
-
-void CounterDevice::setState(CounterState state)
-{
-    if (m_state == state)
-        return;
-    m_state = state;
-    emit stateChanged(m_state);
-}
-
-bool CounterDevice::record(const QString& plate, CarIOState state, qint64 atMs)
-{
-    if (m_state != CounterState::Fine)
-        return false;
-
-    if (state == CarIOState::In)
-        ++m_inCount;
-    else
-        ++m_outCount;
-
-    emit counted(plate, state, atMs);
-    return true;
-}
-
-void CounterDevice::reset()
-{
-    m_inCount = 0;
-    m_outCount = 0;
 }
 
 } // namespace devices
